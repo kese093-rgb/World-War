@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+
+<title>World War</title>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+
+<style>
+*{
+    box-sizing:border-box;
+    -webkit-tap-highlight-color:transparent;
+}
+
+html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:#111827;
+    color:white;
+    font-family:Arial,sans-serif;
+}
+
+#top{
+    height:64px;
+    background:#182235;
+    display:flex;
+    align-items:center;
+    justify-content:space-around;
+    border-bottom:1px solid #374151;
+    position:relative;
+    z-index:20;
+}
+
+.stat{
+    text-align:center;
+    font-size:11px;
+    color:#b8c1d1;
+}
+
+.stat b{
+    display:block;
+    color:white;
+    font-size:15px;
+    margin-top:2px;
+}
+
+#game{
+    position:relative;
+    width:100%;
+    height:calc(100vh - 64px);
+    overflow:hidden;
+}
+
+#map{
+    width:100%;
+    height:100%;
+    background:#263449;
+    touch-action:none;
+}
+
+.country{
+    stroke:#172033;
+    stroke-width:.7;
+    cursor:pointer;
+}
+
+.country:hover{
+    stroke:#fff;
+    stroke-width:1.5;
+}
+
+.city{
+    stroke:white;
+    stroke-width:1.5;
+    cursor:pointer;
+}
+
+#mapButtons{
+    position:absolute;
+    top:12px;
+    left:12px;
+    z-index:10;
+    display:flex;
+    flex-direction:column;
+    gap:7px;
+}
+
+.mapBtn{
+    width:45px;
+    height:45px;
+    border:0;
+    border-radius:12px;
+    background:#202c40;
+    color:white;
+    font-size:21px;
+    box-shadow:0 3px 10px #0007;
+}
+
+#countryPanel{
+    position:absolute;
+    left:10px;
+    right:10px;
+    bottom:10px;
+    z-index:30;
+
+    background:#172033;
+    border:1px solid #3b465b;
+    border-radius:18px;
+
+    padding:15px;
+    max-height:55vh;
+    overflow:auto;
+
+    box-shadow:0 8px 30px #0009;
+
+    display:none;
+}
+
+#countryPanel.show{
+    display:block;
+}
+
+.panelHeader{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+.panelHeader h2{
+    margin:0;
+    font-size:22px;
+}
+
+.close{
+    border:0;
+    background:#374151;
+    color:white;
+    width:35px;
+    height:35px;
+    border-radius:50%;
+    font-size:20px;
+}
+
+.infoGrid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:7px;
+    margin:12px 0;
+}
+
+.info{
+    background:#0f172a;
+    border-radius:9px;
+    padding:9px;
+    font-size:13px;
+}
+
+.info b{
+    display:block;
+    font-size:16px;
+    margin-top:3px;
+}
+
+.actions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:7px;
+}
+
+.action{
+    border:0;
+    border-radius:9px;
+    padding:11px 7px;
+    color:white;
+    font-weight:bold;
+    font-size:13px;
+    background:#334155;
+}
+
+.action.green{background:#15803d}
+.action.red{background:#b91c1c}
+.action.blue{background:#2563eb}
+.action.gold{background:#a16207}
+
+#eventsButton{
+    position:absolute;
+    right:12px;
+    top:12px;
+    z-index:10;
+
+    border:0;
+    border-radius:12px;
+    padding:12px;
+
+    background:#202c40;
+    color:white;
+    font-weight:bold;
+    box-shadow:0 3px 10px #0007;
+}
+
+#eventsPanel{
+    position:absolute;
+    right:10px;
+    top:60px;
+    width:min(330px,calc(100% - 20px));
+    max-height:45vh;
+    overflow:auto;
+
+    background:#172033;
+    border:1px solid #3b465b;
+    border-radius:14px;
+    padding:12px;
+
+    z-index:25;
+    display:none;
+}
+
+.event{
+    padding:7px 0;
+    border-bottom:1px solid #293449;
+    font-size:13px;
+}
+
+#bottomControls{
+    position:absolute;
+    left:10px;
+    bottom:10px;
+    z-index:12;
+    display:flex;
+    gap:7px;
+}
+
+.control{
+    border:0;
+    border-radius:11px;
+    padding:12px 14px;
+    background:#2563eb;
+    color:white;
+    font-weight:bold;
+    box-shadow:0 3px 10px #0007;
+}
+
+#turnButton{
+    background:#2563eb;
+}
+
+.modal{
+    position:absolute;
+    inset:0;
+    z-index:50;
+    background:#0009;
+
+    display:none;
+    align-items:flex-end;
+}
+
+.modal.show{
+    display:flex;
+}
+
+.modalBox{
+    width:100%;
+    background:#172033;
+    border-radius:20px 20px 0 0;
+    padding:20px;
+}
+
+.modalBox h2{
+    margin-top:0;
+}
+
+input[type=range]{
+    width:100%;
+}
+</style>
+</head>
+
+<body>
+
+<div id="top">
+
+    <div class="stat">
+        ХОД
+        <b id="turn">1</b>
+    </div>
+
+    <div class="stat">
+        💰 ДЕНЬГИ
+        <b id="money">1000</b>
+    </div>
+
+    <div class="stat">
+        ⚔ АРМИЯ
+        <b id="army">500</b>
+    </div>
+
+    <div class="stat">
+        🔬 ТЕХНО
+        <b id="tech">1</b>
+    </div>
+
+    <div class="stat">
+        🏆 РЕЙТИНГ
+        <b id="rank">0</b>
+    </div>
+
+</div>
+
+<div id="game">
+
+<svg id="map"></svg>
+
+<div id="mapButtons">
+
+    <button class="mapBtn" onclick="zoomIn()">+</button>
+
+    <button class="mapBtn" onclick="zoomOut()">−</button>
+
+    <button class="mapBtn" onclick="resetEurope()">🇪🇺</button>
+
+</div>
+
+<button id="eventsButton" onclick="toggleEvents()">
+    📜
+</button>
+
+<div id="eventsPanel">
+    <b>События</b>
+    <div id="events"></div>
+</div>
+
+<div id="bottomControls">
+
+    <button class="control" id="turnButton"
+            onclick="nextTurn()">
+        ▶ Следующий ход
+    </button>
+
+    <button class="control"
+            onclick="recruit()">
+        🪖
+    </button>
+
+    <button class="control"
+            onclick="research()">
+        🔬
+    </button>
+
+</div>
+
+<div id="countryPanel">
+
+    <div class="panelHeader">
+
+        <h2 id="countryName"></h2>
+
+        <button class="close"
+                onclick="closeCountry()">
+            ×
+        </button>
+
+    </div>
+
+    <div class="infoGrid">
+
+        <div class="info">
+            ⚔ Армия
+            <b id="countryPower">0</b>
+        </div>
+
+        <div class="info">
+            💰 Экономика
+            <b id="countryMoney">0</b>
+        </div>
+
+        <div class="info">
+            👥 Население
+            <b id="countryPopulation">0</b>
+        </div>
+
+        <div class="info">
+            🛡 Стабильность
+            <b id="countryStability">0%</b>
+        </div>
+
+    </div>
+
+    <div class="actions">
+
+        <button class="action green"
+                onclick="makeAlliance()">
+            🤝 Союз
+        </button>
+
+        <button class="action red"
+                onclick="startWar()">
+            ⚔ Война
+        </button>
+
+        <button class="action blue"
+                onclick="showCities()">
+            🏙 Города
+        </button>
+
+        <button class="action gold"
+                onclick="showDiplomacy()">
+            🕊 Дипломатия
+        </button>
+
+    </div>
+
+    <div id="countryExtra"></div>
+
+</div>
+
+</div>
+
+<div id="attackModal" class="modal">
+
+    <div class="modalBox">
+
+        <h2 id="attackTitle">Атака</h2>
+
+        <p>
+            Мощность армии:
+            <b id="attackPower">0</b>
+        </p>
+
+        <input
+            id="armySlider"
+            type="range"
+            min="1"
+            max="100"
+            value="50"
+            oninput="updateAttackValue()"
+        >
+
+        <p>
+            Потратить:
+            <b id="attackValue">50</b>
+        </p>
+
+        <button class="action red"
+                onclick="executeAttack()">
+            ⚔ Атаковать
+        </button>
+
+        <button class="action"
+                onclick="closeAttack()">
+            Отмена
+        </button>
+
+    </div>
+
+</div>
+
+<script>
+
+/* =========================
+   ДАННЫЕ
+========================= */
+
+const player="Russia";
+
+const countries={
+
+Russia:{
+    power:500,
+    money:1000,
+    population:145,
+    stability:85,
+    tech:1,
+    cities:[
+        ["Москва",37.62,55.75],
+        ["Санкт-Петербург",30.31,59.93],
+        ["Ростов",39.72,47.23],
+        ["Сочи",39.73,43.60]
+    ]
+},
+
+Germany:{
+    power:220,
+    money:800,
+    population:84,
+    stability:82,
+    tech:2,
+    cities:[
+        ["Берлин",13.40,52.52],
+        ["Гамбург",9.99,53.55],
+        ["Мюнхен",11.58,48.14],
+        ["Кёльн",6.96,50.94]
+    ]
+},
+
+France:{
+    power:200,
+    money:850,
+    population:68,
+    stability:80,
+    tech:2,
+    cities:[
+        ["Париж",2.35,48.86],
+        ["Лион",4.83,45.76],
+        ["Марсель",5.37,43.30]
+    ]
+},
+
+Ukraine:{
+    power:180,
+    money:500,
+    population:38,
+    stability:70,
+    tech:1,
+    cities:[
+        ["Киев",30.52,50.45],
+        ["Харьков",36.23,49.99],
+        ["Одесса",30.72,46.48],
+        ["Львов",24.03,49.84]
+    ]
+},
+
+Poland:{
+    power:130,
+    money:450,
+    population:37,
+    stability:75,
+    tech:1,
+    cities:[
+        ["Варшава",21.01,52.23],
+        ["Краков",19.94,50.06],
+        ["Гданьск",18.65,54.35]
+    ]
+},
+
+Italy:{
+    power:120,
+    money:550,
+    population:59,
+    stability:78,
+    tech:1,
+    cities:[
+        ["Рим",12.50,41.90],
+        ["Милан",9.19,45.46],
+        ["Неаполь",14.27,40.85]
+    ]
+},
+
+Spain:{
+    power:140,
+    money:600,
+    population:48,
+    stability:78,
+    tech:1,
+    cities:[
+        ["Мадрид",-3.70,40.42],
+        ["Барселона",2.17,41.39],
+        ["Севилья",-5.98,37.39]
+    ]
+},
+
+Turkey:{
+    power:190,
+    money:700,
+    population:85,
+    stability:70,
+    tech:1,
+    cities:[
+        ["Анкара",32.86,39.93],
+        ["Стамбул",28.98,41.01],
+        ["Измир",27.14,38.42]
+    ]
+},
+
+UnitedKingdom:{
+    power:180,
+    money:750,
+    population:68,
+    stability:85,
+    tech:2,
+    cities:[
+        ["Лондон",-0.12,51.50],
+        ["Манчестер",-2.24,53.48],
+        ["Эдинбург",-3.19,55.95]
+    ]
+},
+
+Romania:{
+    power:80,
+    money:300,
+    population:19,
+    stability:65,
+    tech:1,
+    cities:[
+        ["Бухарест",26.10,44.43]
+    ]
+},
+
+Greece:{
+    power:65,
+    money:280,
+    population:10,
+    stability:70,
+    tech:1,
+    cities:[
+        ["Афины",23.73,38.00],
+        ["Салоники",22.94,40.64]
+    ]
+},
+
+Sweden:{
+    power:100,
+    money:450,
+    population:10,
+    stability:85,
+    tech:2,
+    cities:[
+        ["Стокгольм",18.07,59.33],
+        ["Гётеборг",11.97,57.71]
+    ]
+},
+
+Norway:{
+    power:90,
+    money:400,
+    population:5,
+    stability:90,
+    tech:2,
+    cities:[
+        ["Осло",10.75,59.91]
+    ]
+},
+
+Finland:{
+    power:85,
+    money:350,
+    population:6,
+    stability:82,
+    tech:2,
+    cities:[
+        ["Хельсинки",24.94,60.17]
+    ]
+},
+
+Netherlands:{
+    power:75,
+    money:500,
+    population:18,
+    stability:85,
+    tech:2,
+    cities:[
+        ["Амстердам",4.90,52.37]
+    ]
+},
+
+Belgium:{
+    power:60,
+    money:420,
+    population:12,
+    stability:80,
+    tech:2,
+    cities:[
+        ["Брюссель",4.35,50.85]
+    ]
+},
+
+Portugal:{
+    power:55,
+    money:300,
+    population:10,
+    stability:78,
+    tech:1,
+    cities:[
+        ["Лиссабон",-9.14,38.72]
+    ]
+},
+
+Czechia:{
+    power:70,
+    money:320,
+    population:11,
+    stability:76,
+    tech:2,
+    cities:[
+        ["Прага",14.44,50.08]
+    ]
+},
+
+Austria:{
+    power:65,
+    money:350,
+    population:9,
+    stability:82,
+    tech:2,
+    cities:[
+        ["Вена",16.37,48.21]
+    ]
+},
+
+Hungary:{
+    power:60,
+    money:280,
+    population:10,
+    stability:70,
+    tech:1,
+    cities:[
+        ["Будапешт",19.04,47.50]
+    ]
+},
+
+Bulgaria:{
+    power:50,
+    money:240,
+    population:6,
+    stability:68,
+    tech:1,
+    cities:[
+        ["София",23.32,42.70]
+    ]
+}
+
+};
+
+/* =========================
+   СОСТОЯНИЕ
+========================= */
+
+let wars=[];
+let alliances=[];
+let selectedCountry=null;
+let selectedCity=null;
+let turn=1;
+
+function relation(name){
+
+    if(wars.includes(name))
+        return "Война";
+
+    if(alliances.includes(name))
+        return "Союз";
+
+    return "Нейтралитет";
+}
+
+/* =========================
+   КАРТА
+========================= */
+
+const svg=d3.select("#map");
+
+let width=window.innerWidth;
+let height=window.innerHeight-64;
+
+const projection=d3.geoMercator()
+    .center([30,55])
+    .scale(Math.min(width,height)*2.4)
+    .translate([width/2,height/2]);
+
+const path=d3.geoPath()
+    .projection(projection);
+
+const mapLayer=svg.append("g");
+const cityLayer=svg.append("g");
+
+let zoom=d3.zoom()
+    .scaleExtent([0.6,8])
+    .on("zoom",event=>{
+
+        mapLayer.attr("transform",event.transform);
+        cityLayer.attr("transform",event.transform);
+
+    });
+
+svg.call(zoom);
+
+function resetEurope(){
+
+    svg.transition()
+       .duration(500)
+       .call(
+           zoom.transform,
+           d3.zoomIdentity
+       );
+
+}
+
+function zoomIn(){
+
+    svg.transition()
+       .duration(250)
+       .call(
+           zoom.scaleBy,
+           1.4
+       );
+
+}
+
+function zoomOut(){
+
+    svg.transition()
+       .duration(250)
+       .call(
+           zoom.scaleBy,
+           0.7
+       );
+
+}
+
+/* =========================
+   ЦВЕТА
+========================= */
+
+const ids={
+
+643:"Russia",
+276:"Germany",
+250:"France",
+804:"Ukraine",
+616:"Poland",
+380:"Italy",
+724:"Spain",
+792:"Turkey",
+826:"UnitedKingdom",
+642:"Romania",
+300:"Greece",
+752:"Sweden",
+578:"Norway",
+246:"Finland",
+528:"Netherlands",
+56:"Belgium",
+620:"Portugal",
+203:"Czechia",
+40:"Austria",
+348:"Hungary",
+100:"Bulgaria"
+
+};
+
+function countryColor(name){
+
+    if(name===player)
+        return "#2563eb";
+
+    if(alliances.includes(name))
+        return "#16a34a";
+
+    if(wars.includes(name))
+        return "#dc2626";
+
+    return "#64748b";
+}
+
+/* =========================
+   ЗАГРУЗКА ГЕОГРАФИИ
+========================= */
+
+d3.json(
+"https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"
+).then(world=>{
+
+    const geo=
+        topojson.feature(
+            world,
+            world.objects.countries
+        );
+
+    mapLayer
+        .selectAll("path")
+        .data(geo.features)
+        .enter()
+        .append("path")
+        .attr("class","country")
+        .attr("d",path)
+        .attr("fill",d=>{
+
+            const name=ids[d.id];
+
+            return countryColor(name);
+
+        })
+        .on("click",(event,d)=>{
+
+            const name=ids[d.id];
+
+            if(name && countries[name])
+                openCountry(name);
+
+        });
+
+    drawCities();
+
+    updateUI();
+
+});
+
+/* =========================
+   ГОРОДА
+========================= */
+
+function drawCities(){
+
+    cityLayer.selectAll("*").remove();
+
+    for(const name in countries){
+
+        const c=countries[name];
+
+        c.cities.forEach((city,index)=>{
+
+            const p=projection([
+                city[1],
+                city[2]
+            ]);
+
+            cityLayer
+                .append("circle")
+                .attr("class","city")
+                .attr("cx",p[0])
+                .attr("cy",p[1])
+                .attr("r",4)
+                .attr("fill",
+                    name===player
+                    ?"white"
+                    :"#facc15"
+                )
+                .on("click",event=>{
+
+                    event.stopPropagation();
+
+                    if(
+                        selectedCountry &&
+                        wars.includes(selectedCountry)
+                    ){
+
+                        openAttack(name,index);
+
+                    }else{
+
+                        openCountry(name);
+
+                    }
+
+                });
+
+        });
+
+    }
+
+}
+
+/* =========================
+   СТРАНА
+========================= */
+
+function openCountry(name){
+
+    selectedCountry=name;
+
+    const c=countries[name];
+
+    document.getElementById("countryName")
+        .textContent=
+        name==="UnitedKingdom"
+        ?"Великобритания"
+        :name;
+
+    document.getElementById("countryPower")
+        .textContent=c.power;
+
+    document.getElementById("countryMoney")
+        .textContent=c.money;
+
+    document.getElementById("countryPopulation")
+        .textContent=c.population+" млн";
+
+    document.getElementById("countryStability")
+        .textContent=c.stability+"%";
+
+    document.getElementById("countryPanel")
+        .classList.add("show");
+
+    document.getElementById("countryExtra")
+        .innerHTML=`
+        <div class="info" style="margin-top:10px">
+        🤝 Отношения:
+        <b>${relation(name)}</b>
+        </div>
+        `;
+
+}
+
+function closeCountry(){
+
+    selectedCountry=null;
+
+    document.getElementById("countryPanel")
+        .classList.remove("show");
+
+}
+
+/* =========================
+   ДИПЛОМАТИЯ
+========================= */
+
+function makeAlliance(){
+
+    if(!selectedCountry ||
+       selectedCountry===player)
+        return;
+
+    if(wars.includes(selectedCountry)){
+
+        alert("Нельзя заключить союз во время войны.");
+
+        return;
+    }
+
+    if(!alliances.includes(selectedCountry)){
+
+        alliances.push(selectedCountry);
+
+        addEvent(
+            `🤝 Россия заключила союз с ${selectedCountry}`
+        );
+
+    }
+
+    openCountry(selectedCountry);
+    redraw();
+
+}
+
+function startWar(){
+
+    if(!selectedCountry ||
+       selectedCountry===player)
+        return;
+
+    if(!wars.includes(selectedCountry)){
+
+        wars.push(selectedCountry);
+
+        addEvent(
+            `⚔ Россия объявила войну ${selectedCountry}`
+        );
+
+    }
+
+    openCountry(selectedCountry);
+    redraw();
+
+}
+
+function showDiplomacy(){
+
+    if(!selectedCountry) return;
+
+    alert(
+        "Отношения: "+
+        relation(selectedCountry)+
+        "\n\nМожно заключать союзы или начинать войны."
+    );
+
+}
+
+/* =========================
+   ГОРОДА
+========================= */
+
+function showCities(){
+
+    if(!selectedCountry) return;
+
+    const c=countries[selectedCountry];
+
+    document.getElementById("countryExtra")
+        .innerHTML=`
+
+        <div class="info">
+        <b>🏙 Города</b><br>
+        ${c.cities.map(
+            x=>"• "+x[0]
+        ).join("<br>")}
+        </div>
+
+        `;
+
+}
+
+/* =========================
+   АТАКА
+========================= */
+
+function openAttack(country,index){
+
+    if(!wars.includes(country)){
+
+        openCountry(country);
+        return;
+
+    }
+
+    selectedCountry=country;
+    selectedCity=index;
+
+    const c=countries[country];
+
+    document.getElementById("attackTitle")
+        .textContent=
+        "Атака: "+c.cities[index][0];
+
+    const max=Math.max(
+        1,
+        countries[player].power
+    );
+
+    const slider=
+        document.getElementById("armySlider");
+
+    slider.max=max;
+    slider.value=Math.min(
+        50,
+        max
+    );
+
+    updateAttackValue();
+
+    document.getElementById("attackModal")
+        .classList.add("show");
+
+}
+
+function updateAttackValue(){
+
+    document.getElementById("attackValue")
+        .textContent=
+        document.getElementById("armySlider")
+        .value;
+
+    document.getElementById("attackPower")
+        .textContent=
+        countries[player].power;
+
+}
+
+function closeAttack(){
+
+    document.getElementById("attackModal")
+        .classList.remove("show");
+
+}
+
+function executeAttack(){
+
+    const enemy=countries[selectedCountry];
+
+    const amount=
+        Number(
+            document.getElementById("armySlider").value
+        );
+
+    if(amount>countries[player].power){
+
+        alert("Недостаточно армии.");
+
+        return;
+
+    }
+
+    const city=
+        enemy.cities[selectedCity];
+
+    const defense=
+        enemy.power /
+        enemy.cities.length;
+
+    const attack=
+        amount*
+        (1+
+        countries[player].tech*0.15);
+
+    const chance=
+        attack/
+        (attack+defense);
+
+    countries[player].power-=amount;
+
+    if(Math.random()<chance){
+
+        enemy.power=
+            Math.max(
+                0,
+                enemy.power-
+                Math.floor(amount*0.4)
+            );
+
+        enemy.stability=
+            Math.max(
+                0,
+                enemy.stability-10
+            );
+
+        addEvent(
+            `🏙 Россия захватила ${city[0]}`
+        );
+
+    }else{
+
+        enemy.power=
+            Math.max(
+                0,
+                enemy.power-
+                Math.floor(amount*0.15)
+            );
+
+        addEvent(
+            `❌ Атака на ${city[0]} провалилась`
+        );
+
+    }
+
+    closeAttack();
+    updateUI();
+
+}
+
+/* =========================
+   ЭКОНОМИКА
+========================= */
+
+function recruit(){
+
+    const p=countries[player];
+
+    if(p.money<100){
+
+        alert("Недостаточно денег.");
+
+        return;
+
+    }
+
+    p.money-=100;
+    p.power+=50;
+
+    addEvent(
+        "🪖 Россия мобилизовала 50 армии"
+    );
+
+    updateUI();
+
+}
+
+function research(){
+
+    const p=countries[player];
+
+    const price=
+        300*p.tech;
+
+    if(p.money<price){
+
+        alert(
+            "Нужно "+
+            price+
+            " денег."
+        );
+
+        return;
+
+    }
+
+    p.money-=price;
+    p.tech++;
+
+    addEvent(
+        "🔬 Технологии России улучшены"
+    );
+
+    updateUI();
+
+}
+
+/* =========================
+   ХОД
+========================= */
+
+function nextTurn(){
+
+    turn++;
+
+    const p=countries[player];
+
+    p.money+=
+        30+
+        p.population*2;
+
+    p.power+=
+        10+
+        p.tech*3;
+
+    for(const name in countries){
+
+        if(name===player)
+            continue;
+
+        const c=countries[name];
+
+        c.money+=
+            20+
+            c.population;
+
+        c.power+=
+            5+
+            c.tech*2;
+
+        if(Math.random()<0.05){
+
+            c.tech++;
+
+            addEvent(
+                "🔬 "+name+
+                " улучшил технологии"
+            );
+
+        }
+
+    }
+
+    addEvent(
+        "📅 Начался ход "+turn
+    );
+
+    updateUI();
+
+}
+
+/* =========================
+   UI
+========================= */
+
+function updateUI(){
+
+    const p=countries[player];
+
+    document.getElementById("turn")
+        .textContent=turn;
+
+    document.getElementById("money")
+        .textContent=Math.floor(p.money);
+
+    document.getElementById("army")
+        .textContent=Math.floor(p.power);
+
+    document.getElementById("tech")
+        .textContent=p.tech;
+
+    document.getElementById("rank")
+        .textContent=Math.floor(
+            p.power+
+            p.money/5+
+            p.population
+        );
+
+    redraw();
+
+}
+
+function redraw(){
+
+    mapLayer
+        .selectAll("path")
+        .attr("fill",d=>{
+
+            return countryColor(
+                ids[d.id]
+            );
+
+        });
+
+}
+
+/* =========================
+   СОБЫТИЯ
+========================= */
+
+function addEvent(text){
+
+    const events=
+        document.getElementById("events");
+
+    const div=
+        document.createElement("div");
+
+    div.className="event";
+
+    div.textContent=text;
+
+    events.prepend(div);
+
+}
+
+function toggleEvents(){
+
+    const panel=
+        document.getElementById("eventsPanel");
+
+    panel.style.display=
+        panel.style.display==="block"
+        ?"none"
+        :"block";
+
+}
+
+</script>
+
+</body>
+  </html>
